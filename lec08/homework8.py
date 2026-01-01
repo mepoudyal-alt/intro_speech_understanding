@@ -1,4 +1,6 @@
+import unittest
 import numpy as np
+import librosa
 
 def waveform_to_frames(waveform, frame_length, step):
     '''
@@ -13,7 +15,18 @@ def waveform_to_frames(waveform, frame_length, step):
     frames (np.ndarray((num_frames, frame_length))) - waveform chopped into frames
        frames[m/step,n] = waveform[m+n] only for m = integer multiple of step
     '''
-    raise RuntimeError("You need to change this part")
+    if not isinstance(frame_length, int) or frame_length <= 0:
+        raise ValueError('frame_length must be a positive integer')
+    if not isinstance(step, int) or step <= 0:
+        raise ValueError('step must be a positive integer')
+    num_frames = int(np.ceil((len(waveform)-frame_length+1)/float(step)))
+    frames = np.zeros((num_frames, frame_length))
+    for i in range(num_frames):
+        start_idx = i*step
+        end_idx = min(start_idx + frame_length, len(waveform))
+        frames[i,:end_idx-start_idx] = waveform[start_idx:end_idx]
+    return frames
+speech, Fs = librosa.load('train.m4a', sr=None)
 
 def frames_to_mstft(frames):
     '''
@@ -25,7 +38,10 @@ def frames_to_mstft(frames):
     @returns:
     mstft (np.ndarray((num_frames, frame_length))) - the magnitude short-time Fourier transform
     '''
-    raise RuntimeError("You need to change this part")
+    if not isinstance(frames, np.ndarray) or frames.size == 0:
+        raise ValueError('frames must be a non-empty matrix')
+    mstft = np.abs(np.fft.fft(frames, axis=1))
+    return mstft
 
 def mstft_to_spectrogram(mstft):
     '''
@@ -40,6 +56,8 @@ def mstft_to_spectrogram(mstft):
     The spectrogram should be expressed in decibels (20*log10(mstft)).
     np.amin(spectrogram) should be no smaller than np.amax(spectrogram)-60
     '''
-    raise RuntimeError("You need to change this part")
-
+    if not isinstance(mstft, np.ndarray) or mstft.size == 0:
+        raise ValueError('mstft must be a non-empty matrix')
+    spectrogram = 20*np.log10(np.maximum(0.001*np.amax(mstft),mstft))
+    return spectrogram
 

@@ -1,5 +1,5 @@
 import numpy as np
-import torch, torch.nn
+import torch
 
 def get_features(waveform, Fs):
     '''
@@ -17,7 +17,67 @@ def get_features(waveform, Fs):
         Then give every non-silent segment a different label.  Repeat each label five times.
     
     '''
-    raise RuntimeError("You need to change this part")
+    emphasized = waveform - 0.97 * np.roll(waveform, 1)
+    emphasized[0] = waveform[0]
+    
+    frame_length = int(0.004 * Fs)
+    frame_step = int(0.002 * Fs)
+    
+    nframes = (len(emphasized) - frame_length) // frame_step + 1
+    spectrogram = np.zeros((nframes, frame_length // 2 + 1))
+    
+    for i in range(nframes):
+        frame = emphasized[i * frame_step : i * frame_step + frame_length]
+        if len(frame) < frame_length:
+            frame = np.pad(frame, (0, frame_length - len(frame)))
+        windowed = frame * np.hamming(frame_length)
+        spectrogram[i, :] = np.abs(np.fft.rfft(windowed))
+    
+    features = spectrogram[:, :spectrogram.shape[1] // 2]
+    
+    vad_frame_length = int(0.025 * Fs)
+    vad_frame_step = int(0.010 * Fs)
+    
+    vad_frames = (len(emphasized) - vad_frame_length) // vad_frame_step + 1
+    vad_energy = np.zeros(vad_frames)
+    
+    for i in range(vad_frames):
+        frame = emphasized[i * vad_frame_step : i * vad_frame_step + vad_frame_length]
+        if len(frame) < vad_frame_length:
+            frame = np.pad(frame, (0, vad_frame_length - len(frame)))
+        vad_energy[i] = np.sum(frame ** 2)
+    
+    threshold = np.percentile(vad_energy, 10)
+    voice_activity = vad_energy > threshold
+    
+    segments = []
+    in_segment = False
+    segment_start = 0
+    
+    for i in range(len(voice_activity)):
+        if voice_activity[i] and not in_segment:
+            segment_start = i
+            in_segment = True
+        elif not voice_activity[i] and in_segment:
+            segments.append((segment_start, i - 1))
+            in_segment = False
+    
+    if in_segment:
+        segments.append((segment_start, len(voice_activity) - 1))
+    
+    labels = np.zeros(len(features), dtype=int)
+    
+    for segment_num, (seg_start, seg_end) in enumerate(segments):
+        start_frame = int(seg_start * vad_frame_step / frame_step)
+        end_frame = int(seg_end * vad_frame_step / frame_step)
+        
+        end_frame = min(end_frame, len(features) - 1)
+        
+        if start_frame < len(features):
+            label_idx = segment_num % 6
+            labels[start_frame:end_frame+1] = label_idx
+    
+    return features, labels
 
 def train_neuralnet(features, labels, iterations):
     '''
@@ -39,7 +99,31 @@ def train_neuralnet(features, labels, iterations):
 
     The lossvalues should be computed using a CrossEntropy loss.
     '''
-    raise RuntimeError("You need to change this part")
+    nfeats = features.shape[1]
+    nlabels = 1 + int(np.max(labels))
+    
+    model = torch.nn.Sequential(
+        torch.nn.LayerNorm(nfeats),
+        torch.nn.Linear(nfeats, nlabels)
+    )
+    
+    features_tensor = torch.from_numpy(features).float()
+    labels_tensor = torch.from_numpy(labels).long()
+    
+    loss_function = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters())
+    
+    lossvalues = np.zeros(iterations)
+    
+    for i in range(iterations):
+        outputs = model(features_tensor)
+        loss = loss_function(outputs, labels_tensor)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        lossvalues[i] = loss.item()
+    
+    return model, lossvalues
 
 def test_neuralnet(model, features):
     '''
@@ -49,5 +133,13 @@ def test_neuralnet(model, features):
     @return:
     probabilities (NFRAMES, NLABELS) - model output, transformed by softmax, detach().numpy().
     '''
-    raise RuntimeError("You need to change this part")
+    features_tensor = torch.from_numpy(features).float()
+    
+    with torch.no_grad():
+        outputs = model(features_tensor)
+    
+    softmax = torch.nn.Softmax(dim=1)
+    probabilities = softmax(outputs)
+    
+    return probabilities.detach().numpy()
 

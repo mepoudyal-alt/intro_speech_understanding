@@ -4,7 +4,7 @@ class Test(unittest.TestCase):
     def test_wrods2characters(self):
         words = [ 'hello', 1.234, True ]
         correct = ['h','e','l','l','o','1','.','2','3','4','T','r','u','e']
-        characters = homework2.words2characters(words)
+        characters = homework3.words2characters(words)
         self.assertEqual(len(characters), len(correct),
                          'characters has %d elements, should have %d'%(len(characters),len(correct)))
         for i in range(len(characters)):

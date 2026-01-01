@@ -16,7 +16,14 @@ def major_chord(f, Fs):
     (2) A major third, i.e., four semitones above f
     (3) A major fifth, i.e., seven semitones above f
     '''
-    raise RuntimeError("You need to write this part")
+    if f <= 0 or Fs <= 0:
+        raise ValueError("f and Fs must be positive")
+    n = int(Fs/2)
+    t = np.arange(n)/Fs
+    f_third = f * (2**(4/12))
+    f_fifth = f * (2**(7/12))
+    x = np.cos(2*np.pi*f*t) + np.cos(2*np.pi*f_third*t) + np.cos(2*np.pi*f_fifth*t)
+    return x
 
 def dft_matrix(N):
     '''
@@ -29,7 +36,14 @@ def dft_matrix(N):
     W (NxN array): a matrix of dtype='complex' whose (k,n)^th element is:
            W[k,n] = cos(2*np.pi*k*n/N) - j*sin(2*np.pi*k*n/N)
     '''
-    raise RuntimeError("You need to write this part")
+    if N <= 0:
+        raise ValueError("N must be positive")
+    j = 1j
+    W = np.zeros((N,N), dtype='complex')
+    for k in range(N):
+        for n in range(N):
+            W[k,n] = np.cos(2*np.pi*k*n/N) - j*np.sin(2*np.pi*k*n/N)
+    return W
 
 def spectral_analysis(x, Fs):
     '''
@@ -43,5 +57,20 @@ def spectral_analysis(x, Fs):
     f1, f2, f3: The three loudest frequencies (in Hertz)
       These should be sorted so f1 < f2 < f3.
     '''
-    raise RuntimeError("You need to write this part")
+    if len(x) == 0 or Fs <= 0:
+        raise ValueError("x must be non-empty and Fs must be positive")
+    N = len(x)
+    X = np.fft.fft(x)
+    f = np.fft.fftfreq(N, d=1/Fs)
+
+    # Keep only non-negative frequencies
+    pos_mask = f >= 0
+    Xp = np.abs(X[pos_mask])
+    fp = f[pos_mask]
+
+    # Find indices of three largest peaks
+    idx = np.argsort(Xp)[-3:]
+    freqs = np.sort(fp[idx])
+
+    return freqs[0], freqs[1], freqs[2]
 
